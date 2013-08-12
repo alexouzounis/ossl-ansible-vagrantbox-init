@@ -1,0 +1,7 @@
+---
+# ----------------------------------------------------------------------
+# Basic tasks to check access to vagrantbox via password less sudo
+# ----------------------------------------------------------------------
+
+- name: Check ansible ping
+  action: ping

@@ -1,0 +1,7 @@
+# ----------------------------------------------------------------------
+# Configuration for vagrant boxes:
+#
+# Allow admin group run commands as root without password
+# ----------------------------------------------------------------------
+
+%admin ALL=(ALL) NOPASSWD: ALL

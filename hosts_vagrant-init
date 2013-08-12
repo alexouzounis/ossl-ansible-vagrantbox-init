@@ -1,0 +1,20 @@
+# ----------------------------------------------------------------------
+# file: Provisioning machines for vagrant
+# ----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+# VM should be created with following credentials
+#  - root password: vagrant
+# ----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+# Add Inernal IPs from VMs in section below
+# 
+# Examples:
+#   [ossl-vagrant-init]
+#   192.168.200.100 ansible_ssh_pass=vagrant
+#   somenewvm ansible_ssh_pass=vagrant
+# ----------------------------------------------------------------------
+
+[ossl-vagrant-init]
+localhost ansible_ssh_pass=vagrant

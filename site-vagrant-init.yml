@@ -1,0 +1,20 @@
+---
+# ----------------------------------------------------------------------
+# This is main playbook for vagrant init
+# ----------------------------------------------------------------------
+
+- name: Apply initial configuration for hosts dedicated to vagrant VM
+  hosts: ossl-vagrant-init
+  user: root
+  sudo: no
+
+  roles:
+    - ossl-vagrant-init
+
+- name: Check access to vagrant VM as passwordless vagrant (sudo) user
+  hosts: ossl-vagrant-init
+  user: vagrant
+  sudo: yes
+
+  roles:
+    - ossl-vagrant-ping

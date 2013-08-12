@@ -1,0 +1,3 @@
+vagrant.pub key copy from:
+ - https://github.com/mitchellh/vagrant/tree/master/keys
+
