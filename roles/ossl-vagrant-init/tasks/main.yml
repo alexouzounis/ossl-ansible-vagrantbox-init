@@ -6,17 +6,27 @@
 # http://docs-v1.vagrantup.com/v1/docs/base_boxes.html
 # ----------------------------------------------------------------------
 
-  # Disable SELinux
+  # --- Disable SELinux ---
 - name: Disable SELinux (file)
   lineinfile: dest=/etc/selinux/config regexp=^SELINUX= line=SELINUX=disabled
+  when: selinux_status == 'yes'
 
 - name: Disable SELinux (command)
   command: /usr/sbin/setenforce Permissive
-  ignore_errors: True
+  when: selinux_status == 'yes'
+  ignore_errors: yes
 
-  # Common group and users
+  # Create tmp folders related with setup
+- name: Create required folders
+  file: dest={{ item }} mode=0700 owner=root group=root state=directory
+  with_items:
+    - /root/VBoxGuestAdds
+    - /mnt/VBoxGuestAdds
+    - /tmp/VBoxGuestAdds
+
+  # --- Common group and users ---
 - name: Create required groups
-  group: name={{ item.name }}  gid={{ item.gid }} state=present
+  group: name={{ item.name }} gid={{ item.gid }} state=present
   with_items:
     - { name: 'admin', gid: '509' }
 
@@ -26,20 +36,26 @@
   with_items:
     - { name: 'vagrant', comment: 'Vagrant\ default\ user', groups: 'admin', uid: '501' }
 
-  # Sudo configuration
 - name: Setup default password for vagrant user
   shell: echo "vagrant:vagrant" | chpasswd
 
-- name: Install sudo (sometimes can be not installed)
-  yum: name=sudo state=present
+  # --- Install packages ---
+- name: Install packages (required by vagrant and VirtualBox Guest addons)
+  yum: name={{ item }} state=latest
+  with_items:
+    - sudo
+    - make
+    - gcc
+    - perl
 
+  # --- Sudo configuration ---
 - name: Adjust sudo configuration
   copy: src={{ item.src }} dest={{ item.dest }} mode=0440 owner=root group=root
   with_items:
     - { src: 'sudo/sudoers', dest: '/etc/sudoers' }
     - { src: 'sudo/sudo_vagrant', dest: '/etc/sudoers.d/sudo_vagrant' }
 
-  # SSH configuration
+  # --- SSH configuration ---
 - name: Adjust main SSH configuration
   copy: src=ssh/sshd_config dest=/etc/ssh/sshd_config mode=0600 owner=root group=root
   notify:
@@ -50,9 +66,78 @@
 
   # https://github.com/mitchellh/vagrant/blob/master/keys/vagrant.pub
 - name: SSH configuration - Install vagrant insecure SSH public key
-  copy: src=vagrant/vagrant.pub dest=/home/vagrant/.ssh/authorized_keys 
+  copy: src=vagrant/vagrant.pub dest=/home/vagrant/.ssh/authorized_keys
         mode=0600 owner=vagrant group=users
 
-  # Clean yum cache
+  # --- Installing Virtual Box Guest addons ---
+- name: Checking if kernel-headers is installed
+  shell: rpm -q kernel-headers
+  register: ret_kh
+  ignore_errors: yes
+
+- name: Checking if kernel-devel is installed
+  shell: rpm -q kernel-devel
+  register: ret_kd
+  ignore_errors: yes
+
+- name: "VirtualBox Guest addons - Create initial 'shell' script for building kernel module"
+  template: src=vbguestadd.sh.j2 dest=/root/VBoxGuestAdds/vbguestadd.sh mode=0700 owner=root group=root
+  when: ret_kh.rc == 0 and ret_kd.rc == 0
+
+- name: VirtualBox Guest addons - Download ISO file ({{ vbox_version }})
+  get_url: url=http://download.virtualbox.org/virtualbox/{{ vbox_version }}/VBoxGuestAdditions_{{ vbox_version }}.iso
+           dest=/root/VBoxGuestAdds mode=0600 owner=root group=root
+  when: ret_kh.rc == 0 and ret_kd.rc == 0
+
+- name: VirtualBox Guest addons - Mounting ISO file
+  mount: name=/mnt/VBoxGuestAdds src=/root/VBoxGuestAdds/VBoxGuestAdditions_{{ vbox_version }}.iso
+         fstype=iso9660 opts=ro,loop state=mounted
+  when: ret_kh.rc == 0 and ret_kd.rc == 0
+
+- name: "VirtualBox Guest addons - Run 'VBoxLinuxAdditions.run' (LOG: /tmp/VBoxGuestAdds/VBoxLinuxAdditions.run.log)"
+  shell: /root/VBoxGuestAdds/vbguestadd.sh
+  when: ret_kh.rc == 0 and ret_kd.rc == 0
+
+- name: VirtualBox Guest addons - Unmounting ISO file
+  mount: name=/mnt/VBoxGuestAdds src=/root/VBoxGuestAdds/VBoxGuestAdditions_{{ vbox_version }}.iso
+         fstype=iso9660 opts=ro,loop state=unmounted
+  when: ret_kh.rc == 0 and ret_kd.rc == 0
+
+- name: VirtualBox Guest addons - Unmounting ISO file (remove from /etc/fstab)
+  mount: name=/mnt/VBoxGuestAdds src=/root/VBoxGuestAdds/VBoxGuestAdditions_{{ vbox_version }}.iso
+         fstype=iso9660 opts=ro,loop state=absent
+  when: ret_kh.rc == 0 and ret_kd.rc == 0
+
+  # --- Final configuration - tidy up ---
+- name: "Uninstall pakages: kernel-source and kernel-devel (Save space)"
+  yum: name={{ item }} state=absent
+  with_items:
+    - kernel-devel
+    - kernel-headers
+
+- name: Configure 'network-scripts' for eth0 - setup ONBOOT
+  lineinfile: dest=/etc/sysconfig/network-scripts/ifcfg-eth0
+              regexp=^ONBOOT= line=ONBOOT=yes
+
+- name: Configure 'network-scripts' for eth0 - setup BOOTPROTO
+  lineinfile: dest=/etc/sysconfig/network-scripts/ifcfg-eth0
+              regexp=^BOOTPROTO= line=BOOTPROTO=dhcp
+
+- name: Configure 'network-scripts' for eth0 - remove HWADDR
+  lineinfile: dest=/etc/sysconfig/network-scripts/ifcfg-eth0
+              regexp=^HWADDR= state=absent
+
+- name: Remove not required folders and files (modified during setup)
+  file: dest={{ item }} state=absent
+  with_items:
+    - /root/VBoxGuestAdds
+    - /mnt/VBoxGuestAdds
+    - /home/vagrant/.bash_history
+    - /root/.bash_history
+    - /etc/sysconfig/network-scripts/ifcfg-eth1
+    - /etc/udev/rules.d/70-persistent-net.rules
+  ignore_errors: yes
+
+  # --- Clean yum cache ---
 - name: Clean yum cache
   shell: yum clean all

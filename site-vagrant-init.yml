@@ -7,6 +7,15 @@
   hosts: ossl-vagrant-init
   user: root
   sudo: no
+  vars_prompt:
+    - name: "vbox_version"
+      prompt: "What is your VirtualBox version (example: 4.1.16)"
+      default: "4.1.16"
+      private: no
+    - name: "selinux_status"
+      prompt: "Should SELINUX be disabled: (yes/no)"
+      default: "no"
+      private: no
 
   roles:
     - ossl-vagrant-init

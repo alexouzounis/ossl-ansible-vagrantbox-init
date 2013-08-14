@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# ----------------------------------------------------------------------
+# {{ ansible_managed }}
+#
+# Build VBoxLinuxAdditions:
+# Build is based on latest version from kernel-headers
+# ----------------------------------------------------------------------
+
+LOG=/tmp/VBoxGuestAdds/VBoxLinuxAdditions.run.log
+KERN_VERSION=`rpm -q kernel-headers | sed -e "s/^kernel-headers-//g"`
+export KERN_DIR=/usr/src/kernels/${KERN_VERSION}/
+
+[ ! -d ${KERN_DIR} ] && (
+    echo "ERROR: Can't find '${KERN_DIR}"
+    exit 3
+)
+
+exec 1>${LOG}
+exec 2>&1
+
+echo "Task: Build VirtualBoxAdditions"
+echo "Variables:"
+echo "  KERN_VERSION: '${KERN_VERSION}'"
+echo "  KERN_DIR    : '${KERN_DIR}'"
+echo ""
+
+cd /mnt/VBoxGuestAdds
+./VBoxLinuxAdditions.run
